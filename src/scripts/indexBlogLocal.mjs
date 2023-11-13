@@ -44,24 +44,37 @@ const client = createClient(
   { auth }
 );
 
-const embeddingPromises = langchainDocs[0].map((doc) => {
-  return generateEmbedding(doc.pageContent);
-});
-
-const returnedEmbeddings = await Promise.all(embeddingPromises);
-
-let insertData = [];
-langchainDocs[0].map((doc, index) => {
-  insertData.push({
-    content: doc.pageContent,
-    embedding: returnedEmbeddings[index],
-    metadata: doc.metadata,
+const insertFile = async (langchainDoc) => {
+  const embeddingPromises = langchainDoc.map((doc) => {
+    return generateEmbedding(doc.pageContent);
   });
-});
-console.log("insertData", insertData);
+  
+  const returnedEmbeddings = await Promise.all(embeddingPromises);
+  
+  let insertData = [];
+  langchainDoc.map((doc, index) => {
+    if (!doc.pageContent || !returnedEmbeddings[index] || !doc.metadata) {
+      console.log("Matt problems!");
+      return;
+    }
+    insertData.push({
+      content: doc.pageContent,
+      embedding: returnedEmbeddings[index],
+      metadata: doc.metadata,
+    });
+  });
+   
+  const { error } = await client.from("documents").insert(insertData);
+  console.log("Errors:");
+  console.debug(error);
+  console.log("Done.");
+}
 
-const { error } = await client.from("documents").insert(insertData);
-console.debug(error);
+// iterate each langchainDocs and call insertFile for each:
+langchainDocs.forEach((langchainDoc) => {
+  insertFile(langchainDoc);
+});
+
 
 export async function generateEmbedding(content) {
   const generateEmbedding = await pipeline(
